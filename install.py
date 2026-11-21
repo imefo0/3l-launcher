@@ -58,9 +58,6 @@ def install(version,
     if info_callback: info_callback.emit("Подготовка")
     if progress_callback and is_waiting is not None: is_waiting.emit(True)
 
-    score = 0
-    total_score = 0
-
     chunk_size = 8192
     
     temp_path = Path(settings.value("game_path", "")) / "templates"
@@ -128,7 +125,6 @@ def install(version,
         if info_callback: info_callback.emit("Получение метаданных о сборке")
         download_url = asset["browser_download_url"]
         file_size = asset["size"]
-        total_score += asset["size"]
         file_hash = str(asset["digest"]).removeprefix("sha256:")
 
         if file_size <= 0:
@@ -252,6 +248,7 @@ class Installer(QObject):
     finished = Signal()
     error = Signal(str)
     success = Signal()
+    final = Signal()
     progress = Signal(int)
     is_waiting = Signal(bool)
     info = Signal(str)
@@ -268,4 +265,5 @@ class Installer(QObject):
         except Exception as e:
             self.error.emit(str(e))
         finally:
+            self.final.emit()
             self.finished.emit()

@@ -1,7 +1,7 @@
 import requests
 import version_setting_lib as vslib
 from pathlib import Path
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Signal, Slot, QObject
 from PySide6.QtWidgets import QMainWindow
 import platform
 import os
@@ -17,15 +17,20 @@ build_name = "last_light_leaving"
 
 local_path = Path(settings.value("game_path", "")) / "versions"
 
-def update_versions():
-    versions = synchronize_versions()
+def update_versions(info_callback=None, is_waiting=None):
+    if is_waiting is not None: 
+        is_waiting.emit(True)
+    versions = synchronize_versions(info_callback)
 
+    if info_callback: info_callback.emit("Запись версий в реестр")
     vslib.write_versions(versions)
 
     print(versions)
     print("список версий обновлен")
 
-def get_remote_versions() -> dict[str, dict[str, str | bool]]:
+def get_remote_versions(info_callback=None) -> dict[str, dict[str, str | bool]]:
+    if info_callback: info_callback.emit("Получение списка установленных версий")
+
     response = requests.get(url, params={"per_page": 100}, timeout=15)
     releases = response.json()
 
@@ -48,9 +53,10 @@ def get_remote_versions() -> dict[str, dict[str, str | bool]]:
     print("версии:", versions)
     return versions
 
-def get_local_versions() -> dict[str, bool]:
+def get_local_versions(info_callback=None) -> dict[str, bool]:
     result = {} # TODO: сделать формат вывода
 
+    if info_callback: info_callback.emit("Получение данные об операционной системе")
     format_start_game = {
         "windows": ".exe",
         "macos": "", # HACK: тут спорный момент
@@ -61,9 +67,11 @@ def get_local_versions() -> dict[str, bool]:
     if not local_path.exists():
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         return result
-    
+
+    if info_callback: info_callback.emit("Получение локального всписка версий")
     versions_names = [version.name for version in local_path.iterdir() if version.is_dir()]
 
+    if info_callback: info_callback.emit("Проверка на существование исполняемого файла")
     for version_name in versions_names:
         start_game_file = local_path / version_name / f"{build_name}{format_start_game.get(os_name, "")}"
         if start_game_file.exists() and start_game_file.is_file():
@@ -76,9 +84,10 @@ def get_local_versions() -> dict[str, bool]:
 
     return result
 
-def synchronize_versions() -> dict[str, dict[str, str | bool]]:
-    remote_versions = get_remote_versions()
-    local_versions = get_local_versions()
+def synchronize_versions(info_callback=None) -> dict[str, dict[str, str | bool]]:
+    if info_callback: info_callback.emit("Синхронизация локальных и скачанных данных")
+    remote_versions = get_remote_versions(info_callback)
+    local_versions = get_local_versions(info_callback)
 
     for version in remote_versions:
         remote_versions[version]["is_installed"] = local_versions.get(version, False)
@@ -90,3 +99,26 @@ def synchronize_versions() -> dict[str, dict[str, str | bool]]:
             }
 
     return remote_versions
+
+class Updater(QObject):
+    finished = Signal()
+    error = Signal(str)
+    success = Signal()
+    final = Signal()
+    is_waiting = Signal(bool)
+    info = Signal(str)
+
+    def __init__(self, version):
+        super().__init__()
+        self.version = version
+
+    @Slot()
+    def run(self):
+        try:
+            update_versions(self.version, self.info, self.is_waiting)
+            self.success.emit()
+        except Exception as e:
+            self.error.emit(str(e))
+        finally:
+            self.final.emit()
+            self.finished.emit()

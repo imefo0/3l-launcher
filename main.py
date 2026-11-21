@@ -70,6 +70,39 @@ class InstallUI(QObject):
         else:
             progress_bar.setRange(0, 100)
 
+class CheckUpdatesUI(QObject):
+    def __init__(self, version_selector, window):
+        super().__init__()
+        self.version_selector = version_selector
+        self.window = window
+
+    @Slot()
+    def on_success(self):
+        install.update_registry(version_selector)
+
+    @Slot(str)
+    def on_error(self, message):
+        QMessageBox.critical(
+            self.window,
+            "Ошибка",
+            message
+        )
+
+    @Slot(QLabel)
+    def clear_info(self):
+        QTimer.singleShot(3000, lambda: info.setText(""))
+
+    @Slot(str)
+    def on_info(self, message):
+        info.setText(message)
+
+    @Slot(bool)
+    def on_waiting(self, value):
+        if value:
+            progress_bar.setRange(0, 0)
+        else:
+            progress_bar.setRange(0, 100)
+
 def notification():
     Notification(
         app_id="3L Launcher",
@@ -147,6 +180,7 @@ version_selector = QComboBox()
 info = QLabel()
 
 install_ui = InstallUI(version_selector, window)
+update_ui = CheckUpdatesUI(version_selector, window)
 
 # ========== главное меню ==========
 
@@ -303,6 +337,32 @@ info.setAlignment(
     Qt.AlignmentFlag.AlignCenter
 )
 
+def check_updates_main():
+    global thread, installer
+
+    version = version_selector.currentText()
+
+    thread = QThread()
+    updater = check_updates.Updater(version)
+
+    updater.moveToThread(thread)
+
+    thread.started.connect(updater.run)
+
+    updater.progress.connect(progress_bar.setValue)
+    updater.info.connect(info.setText)
+    updater.is_waiting.connect(install_ui.on_waiting)
+
+    updater.success.connect(update_ui.on_success)
+
+    updater.error.connect(update_ui.on_error)
+
+    updater.final.connect(update_ui.clear_info)
+
+    updater.finished.connect(thread.quit)
+
+    thread.start()
+
 def install_version():
     global thread, installer
 
@@ -323,8 +383,10 @@ def install_version():
     installer.is_waiting.connect(install_ui.on_waiting)
 
     installer.success.connect(install_ui.on_success)
-    installer.success.connect(install_ui.clear_info)
+
     installer.error.connect(install_ui.on_error)
+
+    installer.final.connect(install_ui.clear_info)
 
     installer.finished.connect(thread.quit)
 

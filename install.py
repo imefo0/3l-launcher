@@ -1,95 +1,103 @@
 import requests
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, QObject, Signal, Slot
 from PySide6.QtWidgets import QMessageBox, QMainWindow, QComboBox
 import version_setting_lib as vslib
-import platform
 from pathlib import Path
-import hashlib
 import zipfile
 import shutil
 import update_data as upd_data
+import system_definition as sys_def
+import hash_checker
+import json
 
 settings = QSettings("3L", "3L Launcher")
 window = QMainWindow()
 
 url = "https://api.github.com/repos/imefo0/3l-launcher-test/releases"
 
-temp_path = Path(settings.value("game_path", "")) / "templates"
+build_name = "last_light_leaving"
 
-versions_path = Path(settings.value("game_path", "")) / "versions"
-
-
-def install(version, version_selector: QComboBox):
+def check(version: str, version_selector: QComboBox) -> bool:
     if version_selector.currentText() == "":
         QMessageBox.information(
             window,
             "Справка",
             "Сначала выберете версию"
         )
-        return
+        return False
 
-    installed_versions = vslib.read_installed()
-
-    if installed_versions.get(version, False):
+    versions = vslib.read_versions()
+    if versions[version].get("is_installed", False):
         QMessageBox.information(
             window,
             "Справка",
             f"Эта версия уже установлена"
         )
-        return
-    
+        return False
+
     if settings.value("game_path", "") == "":
         QMessageBox.critical(
             window,
             "Ошибка",
             f"Не удалось установить версию. Введите путь к папке игры"
         )
-        return
+        return False
+
+    return True
+
+def update_registry(version_selector: QComboBox):
+    upd_data.populate_version_selector(
+        version_selector, 
+        upd_data.get_filtered_sorted_versions()
+        )
+
+def install(version, 
+            progress_callback=None,
+            info_callback=None,
+            is_waiting=None):
+    if info_callback: info_callback.emit("Подготовка")
+    if progress_callback and is_waiting is not None: is_waiting.emit(True)
+
+    score = 0
+    total_score = 0
+
+    chunk_size = 8192
+    
+    temp_path = Path(settings.value("game_path", "")) / "templates"
+    versions_path = Path(settings.value("game_path", "")) / "versions"
+
+    versions = vslib.read_versions()
 
     versions_path.mkdir(parents=True, exist_ok=True)
     temp_path.mkdir(parents=True, exist_ok=True)
 
-    # windows, linux, darwin (macos)
-    os_name = platform.system().lower()
+    os_name, arch = sys_def.get_system_info()
 
-    # windows: x86_64, amd64 (чаще amd64 чем x86_64), x86, i386, i686
-    # linux: x86_64, arm64, x86, i386, i686
-    # macos: x86_64, arm64, aarch64 (M1, M2...)
-    arch = platform.machine().lower()
-
-    # для названий сборок: game-(windows/linux/macos)-(x86/x64/arm64).zip
-
-    if os_name == "darwin":
-        os_name = "macos"
-
-    arch_aliases = {
-        "amd64": "x64",
-        "x86_64": "x64",
-        "x86": "x86",
-        "i386": "x86",
-        "i686": "x86",
-        "arm64": "arm64",
-        "aarch64": "arm64"
+    executable_names = {
+        # HACK
+        "windows": f"{build_name}.exe",
+        "linux": build_name,
+        "macos": f"{build_name}.app"
     }
 
-    arch = arch_aliases.get(arch)
+    if info_callback: info_callback.emit("Проверка на совместимость")
+    if os_name not in executable_names:
+        raise Exception("К сожалению, операционная система не поддерживается.")
 
     if arch is None:
-        QMessageBox.critical(
-            window,
-            "Ошибка",
-            "К сожалению данная операционная система не поддерживается."
-        )
+        raise Exception("К сожалению, данная архитектура процессора не поддерживается.")
 
     # game-(windows/linux/macos)-(x86/x64/arm64).zip
-    excepted_name = f"3l-{os_name}-{arch}.zip"
+    expected_name = f"3l-{os_name}-{arch}.zip"
 
     try:
+        if info_callback: info_callback.emit("Установка данных о версий")
         response = requests.get(
             url,
             timeout=15
         )
         response.raise_for_status()
+
         releases = response.json()
 
         release = next(
@@ -98,138 +106,140 @@ def install(version, version_selector: QComboBox):
         )
 
         if release is None:
-            QMessageBox.critical(window, "Ошибка", "Релиз не найден")
-            return
+            raise Exception("Релиз не найден")
         print("установка: релиз есть")
+
+        if info_callback: info_callback.emit("Поиск сборки под эту платформу")
 
         assets = release.get("assets", [])
 
         for asset in assets:
-            print(asset["name"])
-            print(asset["browser_download_url"])
+            print(f"{asset["name"]}: {asset["browser_download_url"]}")
 
         asset = next(
-            (a for a in assets if a["name"] == excepted_name),
+            (a for a in assets if a["name"] == expected_name),
             None
         )
 
         if asset is None:
-            QMessageBox.critical(
-                window,
-                "Ошибка",
-                f"Сборка {excepted_name} не найдена"
-            )
-            return
+            raise Exception(f"Сборка {expected_name} не найдена")
         print("установка: сборка найдена")
 
+        if info_callback: info_callback.emit("Получение метаданных о сборке")
         download_url = asset["browser_download_url"]
         file_size = asset["size"]
+        total_score += asset["size"]
         file_hash = str(asset["digest"]).removeprefix("sha256:")
+
+        if file_size <= 0:
+            raise Exception("Некорректный размер файла")
 
         response = requests.get(download_url, stream=True, timeout=30)
         response.raise_for_status()
 
         downloaded = 0
+
+        if progress_callback and is_waiting is not None: is_waiting.emit(False)
+        if info_callback: info_callback.emit("Установка версии")
         
-        with open((temp_path / excepted_name), "wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
+        with open((temp_path / expected_name), "wb") as file:
+            for chunk in response.iter_content(chunk_size=chunk_size):
                 if chunk:
                     file.write(chunk)
                     downloaded += len(chunk)
-                    print(f"{downloaded}\r" if downloaded % 10000 == 0 else "", end="")
+                    print(f"{downloaded / file_size * 100:.0f}%\r", end="")
+                    if progress_callback:
+                        progress_callback.emit(int(downloaded / file_size * 100))
 
-        hasher = hashlib.sha256()
+        if progress_callback: progress_callback.emit(0)
 
-        with open((temp_path / excepted_name), "rb") as file:
-            while chunk := file.read(8192):
-                hasher.update(chunk)
+        if progress_callback and is_waiting is not None: is_waiting.emit(True)
+        if info_callback: info_callback.emit("Проверка контрольных сумм")
 
-        actual_hash = hasher.hexdigest()
+        if not hash_checker.check_hash_2_files((temp_path / expected_name), file_hash):
+            raise Exception("Контрольная сумма файла не совпадает с ожидаемым. Скачанный файл поврежден")
+        else: print("установка: sha256 совпали")
 
-        if actual_hash != file_hash:
-            QMessageBox.critical(
-                window,
-                "Ошибка",
-                "Контрольная сумма файла не совпадает. Файл повреждён."
-            )
-            return
-        else: print("sha256 совпали")
+        if progress_callback and is_waiting is not None: is_waiting.emit(False)
+        if info_callback: info_callback.emit("Распаковка архива")
 
-        with zipfile.ZipFile((temp_path / excepted_name), "r") as archive:
+        with zipfile.ZipFile((temp_path / expected_name), "r") as archive:
             bad_file = archive.testzip()
 
             if bad_file is not None:
-                QMessageBox.critical(
-                    window,
-                    "Ошибка",
-                    "Архив поврежден"
-                )
-                return
+                raise Exception("Архив поврежден")
 
-            archive.extractall(temp_path / version)
+            members = archive.infolist()
+            total_size = sum(member.file_size for member in members)
+            extracted_size = 0
 
-            executable_names = {
-                # HACK
-                "windows": "Новый игровой проект.exe",
-                "linux": "last_light_leaving",
-                "macos": "last_light_leaving.app"
-            }
+            for member in members:
+                target = temp_path / version / member.filename
+
+                if member.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+
+                target.parent.mkdir(parents=True, exist_ok=True)
+
+                with archive.open(member) as source, open(target, "wb") as destination:
+                    while True:
+                        chunk = source.read(chunk_size)
+
+                        if not chunk:
+                            break
+
+                        destination.write(chunk)
+                        extracted_size += len(chunk)
+
+                        if progress_callback and total_size > 0:
+                            progress_callback.emit(
+                                int(extracted_size / total_size * 100)
+                            )
 
             executable = temp_path / version / executable_names[os_name]
 
             if not executable.exists():
-                QMessageBox.critical(
-                    window,
-                    "Ошибка",
-                    "В архиве отсутствует исполняемый файл игры."
-                )
-                return
+                raise Exception("В архиве отсутствует исполняемый файл игры.")
+
             print("установка: есть исполняемый файл игры")
 
             if (versions_path / version).exists():
-                QMessageBox.critical(
-                    window,
-                    "Ошибка",
-                    "Папка этой версии уже существует."
-                )
-                return
+                raise Exception("Папка этой версии уже существует")
 
             shutil.move(
                 temp_path / version,
                 versions_path / version
-                )
+            )
+
             print("установка: архив переместился")
 
-            installed = vslib.read_installed()
-            installed[version] = True
-            vslib.write_installed(installed)
-            print(installed)
-            print(f"{version} = True")
+        if progress_callback: progress_callback.emit(0)
 
-            upd_data.post_upd(version_selector, upd_data.update(version_selector))
+        if info_callback: info_callback.emit("Запись версии в реестр")
+        if progress_callback and is_waiting is not None: is_waiting.emit(True)
+        versions[version]["is_installed"] = True
+        vslib.write_versions(versions)
 
-            # answer = QMessageBox.question(
-            #     window,
-            #     "Удаление временных файлов",
-            #     "Хотите удалить временные файлы?",
-            #     QMessageBox.StandardButton.Yes |
-            #     QMessageBox.StandardButton.No
-            # )
-            # if answer == QMessageBox.StandardButton.Yes:
-            #     shutil.rmtree(temp_path)
+        # answer = QMessageBox.question(
+        #     window,
+        #     "Удаление временных файлов",
+        #     "Хотите удалить временные файлы?",
+        #     QMessageBox.StandardButton.Yes |
+        #     QMessageBox.StandardButton.No
+        # )
+        # if answer == QMessageBox.StandardButton.Yes:
+        #     shutil.rmtree(temp_path)
 
-            print("установка завершена")
+        if progress_callback and is_waiting is not None: is_waiting.emit(False)
+        if info_callback: info_callback.emit("Установка завершена")
+        print("установка завершена")
 
-            # TODO: добавить потом защиту от zip slip
-            # TODO: прям потом
+        # TODO: добавить потом защиту от zip slip
+        # TODO: прям потом
 
-    except requests.RequestException:
-        print("Status:", response.status_code)
-        print("URL:", response.url)
-        print("Response:", response.text[:1000])
-        QMessageBox.critical(window, "Ошибка", "Ошибка с сервером.")
-
-        return
+    except requests.RequestException as e:
+        raise Exception(f"Ошибка с сервером: {e}") from e
 
     # сделать кнопку отменить
     # показать прогресс
@@ -237,3 +247,25 @@ def install(version, version_selector: QComboBox):
     # переместить файл
     # сказать готово
     # поставить кнопку "удалить"
+
+class Installer(QObject):
+    finished = Signal()
+    error = Signal(str)
+    success = Signal()
+    progress = Signal(int)
+    is_waiting = Signal(bool)
+    info = Signal(str)
+
+    def __init__(self, version):
+        super().__init__()
+        self.version = version
+
+    @Slot()
+    def run(self):
+        try:
+            install(self.version, self.progress, self.info, self.is_waiting)
+            self.success.emit()
+        except Exception as e:
+            self.error.emit(str(e))
+        finally:
+            self.finished.emit()

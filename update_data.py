@@ -7,26 +7,40 @@ from PySide6.QtGui import QColor, QPalette
 
 settings = QSettings("3L", "3L Launcher")
 
-def update(version_selector: QComboBox):
+version_filter = {
+    "alpha": settings.value("version_alpha"),
+    "beta": settings.value("version_beta"),
+    "rc": settings.value("version_rc")
+}
+
+def get_filtered_sorted_versions() -> dict[str, bool]:
     # current_text = version_selector.currentText()
 
-    version_list_raw = list(vslib.read_installed().items())
-    version_list = []
+    version_list = {
+        version: data["is_installed"]
+        for version, data in vslib.read_versions().items()
+    }
 
-    for version, installed in version_list_raw:
+    result = {}
+
+    for version, installed in version_list.items():
         prerelease_version = Version(version).prerelease
         if len(prerelease_version) == 0:
             if settings.value("version_release"):
-                version_list.append((version, installed))
+                result[version] = installed
         else:
-            if prerelease_version[0] == "alpha" and settings.value("version_alpha"):
-                version_list.append((version, installed))
-            if prerelease_version[0] == "beta" and settings.value("version_beta"):
-                version_list.append((version, installed))
-            if prerelease_version[0] == "rc" and settings.value("version_rc"):
-                version_list.append((version, installed))
+            for prerelease, setting in version_filter.items():
+                if prerelease_version[0] == prerelease and setting:
+                    result[version] = installed
+                    break
 
-    version_list.sort(key=lambda item: Version.coerce(item[0]), reverse=True)
+    return dict(
+        sorted(
+            result.items(),
+            key=lambda item: Version.coerce(item[0]),
+            reverse=True
+        )
+    )
 
     # TODO: ПОСЛЕ 1.0.0
     # print("version_list:", version_list)
@@ -36,11 +50,9 @@ def update(version_selector: QComboBox):
     #     version_selector.setCurrentText(current_text)
     #     print("ставим в version_selector:", current_text)
 
-    return version_list
-
-def post_upd(version_selector: QComboBox, version_list: list):
+def populate_version_selector(version_selector: QComboBox, versions: dict[str, bool]):
     version_selector.clear()
-    for version, is_installed in version_list:
+    for version, is_installed in versions.items():
         version_selector.addItem(version)
         if is_installed: version_selector.setItemData(
             version_selector.count() - 1,

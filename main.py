@@ -22,7 +22,6 @@ from PySide6.QtCore import (
     Slot
     )
 from PySide6.QtGui import QColor, QPalette, QFont
-from winotify import Notification
 from semantic_version import Version
 
 app = QApplication()
@@ -90,14 +89,6 @@ class InstallUI(BaseUI):
 
 class CheckUpdatesUI(BaseUI):
     pass
-
-def notification():
-    Notification(
-        app_id="3L Launcher",
-        title="3L Launcher",
-        msg="Установка пошла",
-        duration="short"
-    ).show()
 
 def question():
     answer = QMessageBox.question(

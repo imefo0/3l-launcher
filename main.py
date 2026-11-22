@@ -73,6 +73,11 @@ class BaseUI(QObject):
         launch_button.setEnabled(enabled)
         update_button.setEnabled(enabled)
 
+    @Slot()
+    def reset_progress_bar(self):
+        progress_bar.setValue(0)
+        progress_bar.setRange(0, 100)
+
 class InstallUI(BaseUI):
     @Slot(int)
     def on_progress(self, value):
@@ -124,14 +129,6 @@ def test():
     layout.addWidget(progress)
 
     dialog.show()
-
-def check_updates_versions(progress_bar: QProgressBar, info: QLabel):
-    progress_bar.setRange(0, 0)
-    info.setText("Идет проверка на обновления")
-    check_updates.update_versions()
-    progress_bar.setRange(0, 100)
-    info.setText("Выполнена проверка на обновления версий")
-    QTimer.singleShot(3000, lambda: info.setText(""))
 
 version_launcher_value = "0.1.0"
 
@@ -344,6 +341,7 @@ def check_updates_main():
     updater.error.connect(update_ui.on_error)
 
     updater.final.connect(update_ui.clear_info)
+    updater.final.connect(update_ui.reset_progress_bar)
 
     updater.finished.connect(
         lambda: update_ui.set_operation_enabled(True)
@@ -379,6 +377,7 @@ def install_version():
     installer.error.connect(install_ui.on_error)
 
     installer.final.connect(install_ui.clear_info)
+    installer.final.connect(install_ui.reset_progress_bar)
 
     installer.finished.connect(
         lambda: install_ui.set_operation_enabled(True)

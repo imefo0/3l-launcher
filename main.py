@@ -76,10 +76,6 @@ class CheckUpdatesUI(QObject):
         self.version_selector = version_selector
         self.window = window
 
-    @Slot()
-    def on_success(self):
-        install.update_registry(version_selector)
-
     @Slot(str)
     def on_error(self, message):
         QMessageBox.critical(
@@ -338,7 +334,7 @@ info.setAlignment(
 )
 
 def check_updates_main():
-    global thread, installer
+    global thread, updater
 
     version = version_selector.currentText()
 
@@ -349,11 +345,8 @@ def check_updates_main():
 
     thread.started.connect(updater.run)
 
-    updater.progress.connect(progress_bar.setValue)
     updater.info.connect(info.setText)
     updater.is_waiting.connect(install_ui.on_waiting)
-
-    updater.success.connect(update_ui.on_success)
 
     updater.error.connect(update_ui.on_error)
 
@@ -397,12 +390,7 @@ install_delete_button.clicked.connect(install_version)
 play_button = QPushButton("Запустить")
 
 update_button = QPushButton("Проверить на наличие новых версий")
-update_button.clicked.connect(lambda: (check_updates_versions(progress_bar, info), 
-                                       upd_data.populate_version_selector(
-                                           version_selector, 
-                                           upd_data.get_filtered_sorted_versions()
-                                           )
-                                           ))
+update_button.clicked.connect(check_updates_main)
 
 versions = upd_data.get_filtered_sorted_versions()
 

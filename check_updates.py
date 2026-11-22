@@ -115,7 +115,7 @@ class Updater(QObject):
     @Slot()
     def run(self):
         try:
-            update_versions(self.version, self.info, self.is_waiting)
+            update_versions(self.info, self.is_waiting)
             self.success.emit()
         except Exception as e:
             self.error.emit(str(e))

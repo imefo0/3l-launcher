@@ -51,6 +51,7 @@ def get_filtered_sorted_versions() -> dict[str, bool]:
     #     print("ставим в version_selector:", current_text)
 
 def populate_version_selector(version_selector: QComboBox, versions: dict[str, bool]):
+    current_ver = version_selector.currentText()
     version_selector.clear()
     for version, is_installed in versions.items():
         version_selector.addItem(version)
@@ -59,3 +60,5 @@ def populate_version_selector(version_selector: QComboBox, versions: dict[str, b
             QColor(version_selector.palette().color(QPalette.ColorRole.Base).darker(115)),
             Qt.ItemDataRole.BackgroundRole
             )
+    if current_ver in versions.keys():
+        version_selector.setCurrentText(current_ver)

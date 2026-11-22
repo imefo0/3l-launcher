@@ -8,6 +8,27 @@ from typing import Any
 
 settings = QSettings("3L", "3L Launcher")
 
+def ensure_defaults() -> None:
+    # переместить в конфиг
+    defaults = {
+        "check_game_upd_on_start": False,
+        "check_launcher_upd_on_start": True,
+        "minimize_on_start_game": True,
+        "version_alpha": True,
+        "version_beta": True,
+        "version_rc": True,
+        "version_release": True,
+        "game_path": "",
+    }
+    
+    changed = False
+    for key, default in defaults.items():
+        if not settings.contains(key):
+            settings.setValue(key, default)
+            changed = True
+    if changed:
+        settings.sync()
+
 def add_setting(*, layout: QHBoxLayout,
                 text: str,
                 settings: QSettings,

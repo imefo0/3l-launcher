@@ -139,6 +139,7 @@ thread = None
 installer = None
 
 settings = QSettings("3L", "3L Launcher")
+settings_lib.ensure_defaults()
 
 window = QMainWindow()
 window.setWindowTitle("3L Launcher")

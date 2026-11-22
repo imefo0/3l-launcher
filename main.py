@@ -440,6 +440,7 @@ bottom_layout.addWidget(info, 4, 0, 1, 2)
 
 if settings.value("check_game_upd_on_start") == "true":
     check_updates_versions(progress_bar=progress_bar, info=info)
+print("[MAIN]: запуск")
 
 main_layout.addLayout(main_menu_header_layout)
 

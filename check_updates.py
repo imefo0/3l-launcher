@@ -7,6 +7,7 @@ import platform
 import os
 import shutil
 import system_definition as sys_def
+import github_api as gh_api
 
 url = "https://api.github.com/repos/imefo0/3l-launcher-test/releases"
 
@@ -35,7 +36,7 @@ def get_remote_versions(info_callback=None) -> dict[str, dict[str, str | bool]]:
     if info_callback: info_callback.emit("Получение списка установленных версий")
     print("[CHECK UPD]: получение списка установленных версий")
 
-    response = requests.get(url, params={"per_page": 100}, timeout=15)
+    response = gh_api.github_get(url, params={"per_page": 100})
     response.raise_for_status()
     releases = response.json()
     print(f"[CHECK UPD]: всего релизов: {len(releases)}")

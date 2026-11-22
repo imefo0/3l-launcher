@@ -8,7 +8,7 @@ import shutil
 import update_data as upd_data
 import system_definition as sys_def
 import hash_checker
-import json
+import github_api as gh_api
 
 settings = QSettings("3L", "3L Launcher")
 window = QMainWindow()
@@ -51,10 +51,17 @@ def update_registry(version_selector: QComboBox):
         upd_data.get_filtered_sorted_versions()
         )
 
-def install(version, 
-            progress_callback=None,
-            info_callback=None,
-            is_waiting=None):
+def install(
+        version, 
+        progress_callback=None,
+        info_callback=None,
+        is_waiting=None,
+        cancel_event=None
+        ):
+    def check_cancel():
+        if cancel_event and cancel_event.is_set():
+            raise InterruptedError("Установка отменена")
+    
     if info_callback: info_callback.emit("Подготовка")
     if progress_callback and is_waiting is not None: is_waiting.emit(True)
 
@@ -62,6 +69,9 @@ def install(version,
     
     temp_path = Path(settings.value("game_path", "")) / "templates"
     versions_path = Path(settings.value("game_path", "")) / "versions"
+
+    moved = False
+    installation_completed = False
 
     versions = vslib.read_versions()
 
@@ -77,6 +87,8 @@ def install(version,
         "macos": f"{build_name}.app"
     }
 
+    check_cancel()
+
     if info_callback: info_callback.emit("Проверка на совместимость")
     if os_name not in executable_names:
         raise Exception("К сожалению, операционная система не поддерживается.")
@@ -87,12 +99,14 @@ def install(version,
     # game-(windows/linux/macos)-(x86/x64/arm64).zip
     expected_name = f"3l-{os_name}-{arch}.zip"
 
+    archive_path = temp_path / expected_name
+    temp_version_path = temp_path / version
+    final_version_path = versions_path / version
+
     try:
+        check_cancel()
         if info_callback: info_callback.emit("Установка данных о версий")
-        response = requests.get(
-            url,
-            timeout=15
-        )
+        response = gh_api.github_get(url)
         response.raise_for_status()
 
         releases = response.json()
@@ -101,6 +115,8 @@ def install(version,
             (r for r in releases if r["tag_name"] == version),
             None
         )
+
+        check_cancel()
 
         if release is None:
             raise Exception("Релиз не найден")
@@ -118,6 +134,8 @@ def install(version,
             None
         )
 
+        check_cancel()
+
         if asset is None:
             raise Exception(f"Сборка {expected_name} не найдена")
         print("установка: сборка найдена")
@@ -130,16 +148,20 @@ def install(version,
         if file_size <= 0:
             raise Exception("Некорректный размер файла")
 
-        response = requests.get(download_url, stream=True, timeout=30)
+        response = gh_api.github_get(download_url, stream=True, timeout=30)
         response.raise_for_status()
 
         downloaded = 0
 
+        check_cancel()
+
         if progress_callback and is_waiting is not None: is_waiting.emit(False)
         if info_callback: info_callback.emit("Установка версии")
         
-        with open((temp_path / expected_name), "wb") as file:
+        with open(archive_path, "wb") as file:
             for chunk in response.iter_content(chunk_size=chunk_size):
+                check_cancel()
+
                 if chunk:
                     file.write(chunk)
                     downloaded += len(chunk)
@@ -148,6 +170,8 @@ def install(version,
                         progress_callback.emit(int(downloaded / file_size * 100))
 
         if progress_callback: progress_callback.emit(0)
+
+        check_cancel()
 
         if progress_callback and is_waiting is not None: is_waiting.emit(True)
         if info_callback: info_callback.emit("Проверка контрольных сумм")
@@ -158,6 +182,8 @@ def install(version,
 
         if progress_callback and is_waiting is not None: is_waiting.emit(False)
         if info_callback: info_callback.emit("Распаковка архива")
+
+        check_cancel()
 
         with zipfile.ZipFile((temp_path / expected_name), "r") as archive:
             bad_file = archive.testzip()
@@ -170,7 +196,9 @@ def install(version,
             extracted_size = 0
 
             for member in members:
-                target = temp_path / version / member.filename
+                check_cancel()
+
+                target = temp_version_path / member.filename
 
                 if member.is_dir():
                     target.mkdir(parents=True, exist_ok=True)
@@ -180,6 +208,8 @@ def install(version,
 
                 with archive.open(member) as source, open(target, "wb") as destination:
                     while True:
+                        check_cancel()
+
                         chunk = source.read(chunk_size)
 
                         if not chunk:
@@ -203,10 +233,13 @@ def install(version,
             if (versions_path / version).exists():
                 raise Exception("Папка этой версии уже существует")
 
+            check_cancel()
+
             shutil.move(
                 temp_path / version,
                 versions_path / version
             )
+            moved = True
 
             print("установка: архив переместился")
 
@@ -216,6 +249,12 @@ def install(version,
         if progress_callback and is_waiting is not None: is_waiting.emit(True)
         versions[version]["is_installed"] = True
         vslib.write_versions(versions)
+
+        installation_completed = True
+
+        if progress_callback and is_waiting is not None: is_waiting.emit(False)
+        if info_callback: info_callback.emit("Установка завершена")
+        print("установка завершена")
 
         # answer = QMessageBox.question(
         #     window,
@@ -227,15 +266,23 @@ def install(version,
         # if answer == QMessageBox.StandardButton.Yes:
         #     shutil.rmtree(temp_path)
 
-        if progress_callback and is_waiting is not None: is_waiting.emit(False)
-        if info_callback: info_callback.emit("Установка завершена")
-        print("установка завершена")
-
         # TODO: добавить потом защиту от zip slip
         # TODO: прям потом
 
-    except requests.RequestException as e:
-        raise Exception(f"Ошибка с сервером: {e}") from e
+    except requests.exceptions.RequestException:
+        raise Exception(f"Ошибка с сервером или нет подключения к интернету")
+
+    finally:
+        if not installation_completed:
+
+            if archive_path.exists():
+                archive_path.unlink()
+
+            if temp_version_path.exists():
+                shutil.rmtree(temp_version_path)
+
+            if moved and final_version_path.exists():
+                shutil.rmtree(final_version_path)
 
     # сделать кнопку отменить
     # показать прогресс
@@ -253,15 +300,24 @@ class Installer(QObject):
     is_waiting = Signal(bool)
     info = Signal(str)
 
-    def __init__(self, version):
+    def __init__(self, version, cancel_event):
         super().__init__()
         self.version = version
+        self.cancel_event = cancel_event
 
     @Slot()
     def run(self):
         try:
-            install(self.version, self.progress, self.info, self.is_waiting)
+            install(
+                self.version,
+                self.progress,
+                self.info,
+                self.is_waiting,
+                self.cancel_event
+            )
             self.success.emit()
+        except InterruptedError:
+            print("Установка отменена")
         except Exception as e:
             self.error.emit(str(e))
         finally:

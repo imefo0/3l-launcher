@@ -1,4 +1,5 @@
 import sys
+from threading import Event
 from PySide6.QtWidgets import (
     QApplication, 
     QMainWindow,
@@ -23,6 +24,7 @@ from PySide6.QtCore import (
     )
 from PySide6.QtGui import QColor, QPalette, QFont
 from semantic_version import Version
+import github_api as gh_api
 
 app = QApplication()
 
@@ -89,6 +91,29 @@ class InstallUI(BaseUI):
 
 class CheckUpdatesUI(BaseUI):
     pass
+
+def set_button_state(state):
+    global button_state
+
+    button_state = state
+
+    texts = {
+        "install": "Установить",
+        "cancel": "Отмена",
+        "delete": "Удалить"
+    }
+
+    install_delete_button.setText(texts[state])
+
+def main_action():
+    if button_state == "install":
+        install_version()
+
+    elif button_state == "cancel":
+        cancel_install()
+
+    elif button_state == "delete":
+        delete_version()
 
 def question():
     answer = QMessageBox.question(
@@ -310,6 +335,13 @@ info.setAlignment(
     Qt.AlignmentFlag.AlignCenter
 )
 
+def cancel_install():
+    cancel_event.set()
+    info.setText("Отмена установки...")
+    install_ui.on_waiting()
+    install_delete_button.setEnabled(False)
+    install_ui.reset_progress_bar()
+
 def check_updates_main():
     global thread, updater
 
@@ -350,6 +382,8 @@ def install_version():
     if not install.check(version, version_selector):
         return
 
+    cancel_event.clear()
+
     thread = QThread()
     installer = install.Installer(version)
 
@@ -378,8 +412,11 @@ def install_version():
 
     thread.start()
 
+button_state = "install"
+cancel_event = Event()
+
 install_delete_button = QPushButton("Установить")
-install_delete_button.clicked.connect(install_version)
+install_delete_button.clicked.connect(main_action)
 
 update_button = QPushButton("Проверить на наличие новых версий")
 update_button.clicked.connect(check_updates_main)

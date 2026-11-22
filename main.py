@@ -33,65 +33,28 @@ import check_updates
 import update_data as upd_data
 import settings_lib
 
-class InstallUI(QObject):
+class BaseUI(QObject):
     def __init__(self, version_selector, window):
         super().__init__()
         self.version_selector = version_selector
         self.window = window
+
+    @Slot(str)
+    def on_error(self, message):
+        QMessageBox.critical(
+            self.window,
+            "Ошибка",
+            message
+        )
+
+    @Slot()
+    def clear_info(self):
+        print("[BASEUI]: clear_info выполняется")
+        QTimer.singleShot(3000, lambda: info.setText(""))
 
     @Slot()
     def on_success(self):
         install.update_registry(version_selector)
-
-    @Slot(str)
-    def on_error(self, message):
-        QMessageBox.critical(
-            self.window,
-            "Ошибка",
-            message
-        )
-
-    @Slot(QLabel)
-    def clear_info(self):
-        QTimer.singleShot(3000, lambda: info.setText(""))
-
-    @Slot(int)
-    def on_progress(self, value):
-        progress_bar.setValue(value)
-
-    @Slot(str)
-    def on_info(self, message):
-        info.setText(message)
-
-    @Slot(bool)
-    def on_waiting(self, value):
-        if value:
-            progress_bar.setRange(0, 0)
-        else:
-            progress_bar.setRange(0, 100)
-
-    @Slot(bool)
-    def set_buttons_enabled(self, enabled):
-        launch_button.setEnabled(enabled)
-        update_button.setEnabled(enabled)
-
-class CheckUpdatesUI(QObject):
-    def __init__(self, version_selector, window):
-        super().__init__()
-        self.version_selector = version_selector
-        self.window = window
-
-    @Slot(str)
-    def on_error(self, message):
-        QMessageBox.critical(
-            self.window,
-            "Ошибка",
-            message
-        )
-
-    @Slot(QLabel)
-    def clear_info(self):
-        QTimer.singleShot(3000, lambda: info.setText(""))
 
     @Slot(str)
     def on_info(self, message):
@@ -109,6 +72,19 @@ class CheckUpdatesUI(QObject):
         install_delete_button.setEnabled(enabled)
         launch_button.setEnabled(enabled)
         update_button.setEnabled(enabled)
+
+class InstallUI(BaseUI):
+    @Slot(int)
+    def on_progress(self, value):
+        progress_bar.setValue(value)
+
+    @Slot(bool)
+    def set_operation_enabled(self, enabled):
+        launch_button.setEnabled(enabled)
+        update_button.setEnabled(enabled)
+
+class CheckUpdatesUI(BaseUI):
+    pass
 
 def notification():
     Notification(
@@ -362,6 +338,8 @@ def check_updates_main():
     updater.info.connect(info.setText)
     updater.is_waiting.connect(install_ui.on_waiting)
 
+    updater.success.connect(install_ui.on_success)
+
     updater.error.connect(update_ui.on_error)
 
     updater.final.connect(update_ui.clear_info)
@@ -385,7 +363,7 @@ def install_version():
     thread = QThread()
     installer = install.Installer(version)
 
-    install_ui.set_buttons_enabled(False)
+    install_ui.set_operation_enabled(False)
 
     installer.moveToThread(thread)
 
@@ -402,7 +380,7 @@ def install_version():
     installer.final.connect(install_ui.clear_info)
 
     installer.finished.connect(
-        lambda: install_ui.set_buttons_enabled(True)
+        lambda: install_ui.set_operation_enabled(True)
     )
 
     installer.finished.connect(thread.quit)

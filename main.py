@@ -70,6 +70,11 @@ class InstallUI(QObject):
         else:
             progress_bar.setRange(0, 100)
 
+    @Slot(bool)
+    def set_buttons_enabled(self, enabled):
+        launch_button.setEnabled(enabled)
+        update_button.setEnabled(enabled)
+
 class CheckUpdatesUI(QObject):
     def __init__(self, version_selector, window):
         super().__init__()
@@ -98,6 +103,12 @@ class CheckUpdatesUI(QObject):
             progress_bar.setRange(0, 0)
         else:
             progress_bar.setRange(0, 100)
+
+    @Slot(bool)
+    def set_operation_enabled(self, enabled):
+        install_delete_button.setEnabled(enabled)
+        launch_button.setEnabled(enabled)
+        update_button.setEnabled(enabled)
 
 def notification():
     Notification(
@@ -174,6 +185,7 @@ window.setCentralWidget(pages)
 
 version_selector = QComboBox()
 info = QLabel()
+launch_button = QPushButton("Запустить")
 
 install_ui = InstallUI(version_selector, window)
 update_ui = CheckUpdatesUI(version_selector, window)
@@ -341,6 +353,8 @@ def check_updates_main():
     thread = QThread()
     updater = check_updates.Updater(version)
 
+    update_ui.set_operation_enabled(False)
+
     updater.moveToThread(thread)
 
     thread.started.connect(updater.run)
@@ -351,6 +365,10 @@ def check_updates_main():
     updater.error.connect(update_ui.on_error)
 
     updater.final.connect(update_ui.clear_info)
+
+    updater.finished.connect(
+        lambda: update_ui.set_operation_enabled(True)
+    )
 
     updater.finished.connect(thread.quit)
 
@@ -367,6 +385,8 @@ def install_version():
     thread = QThread()
     installer = install.Installer(version)
 
+    install_ui.set_buttons_enabled(False)
+
     installer.moveToThread(thread)
 
     thread.started.connect(installer.run)
@@ -381,13 +401,16 @@ def install_version():
 
     installer.final.connect(install_ui.clear_info)
 
+    installer.finished.connect(
+        lambda: install_ui.set_buttons_enabled(True)
+    )
+
     installer.finished.connect(thread.quit)
 
     thread.start()
 
 install_delete_button = QPushButton("Установить")
 install_delete_button.clicked.connect(install_version)
-play_button = QPushButton("Запустить")
 
 update_button = QPushButton("Проверить на наличие новых версий")
 update_button.clicked.connect(check_updates_main)
@@ -407,7 +430,7 @@ for version, is_installed in versions.items():
 if len(versions.keys()) > 0: version_selector.setCurrentIndex(0)
 
 bottom_layout.addWidget(install_delete_button, 1, 0)
-bottom_layout.addWidget(play_button, 1, 1)
+bottom_layout.addWidget(launch_button, 1, 1)
 bottom_layout.addWidget(update_button, 2, 0, 1, 2)
 bottom_layout.addWidget(version_selector, 0, 0, 1, 2)
 bottom_layout.addWidget(progress_bar, 3, 0, 1, 2)

@@ -274,6 +274,13 @@ for version in ["alpha", "beta", "rc", "release"]:
     row.addWidget(checkbox)
     version_layout.addLayout(row)
 
+double_check = QHBoxLayout()
+settings_lib.add_setting(layout=double_check,
+                         text="Повторно спрашивать при удалении версии",
+                         settings=settings,
+                         value="double_check", default_value=True, type=bool,
+                         add_stretch=True)
+
 update_launcher = QPushButton("Проверить на наличие обновлений лаунчера")
 
 version_launcher = QLabel(version_launcher_value)
@@ -290,6 +297,7 @@ settings_layout.addLayout(minimize_on_start_game)
 settings_layout.addWidget(path_text)
 settings_layout.addLayout(path_layout)
 settings_layout.addLayout(version_layout)
+settings_layout.addLayout(double_check)
 settings_layout.addStretch()
 settings_layout.addWidget(update_launcher)
 settings_layout.addWidget(version_launcher)

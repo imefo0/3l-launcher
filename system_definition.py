@@ -26,3 +26,15 @@ def get_system_info(to_macos=True, convert_arch=True) -> tuple[str, str]:
     arch = arch_aliases.get(arch) if convert_arch else arch
 
     return (os_name, arch)
+
+def get_game_extension() -> str:
+    os_name, arch = get_system_info()
+
+    executable_names = {
+        # HACK
+        "windows": ".exe",
+        "linux": "",
+        "macos": ".app"
+    }
+
+    return executable_names[os_name]

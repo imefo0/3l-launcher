@@ -1,5 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+ICON = Path(SPECPATH) / 'assets' / '3l_launcher_icon.ico'
+
 
 a = Analysis(
     ['main.py'],
@@ -22,7 +26,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name='3l_launcher',
-    icon='assets/3l_launcher_icon.ico',
+    icon=str(ICON),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

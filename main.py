@@ -118,19 +118,26 @@ def main_action():
     elif button_state == "delete":
         delete_version()
 
-def question():
-    answer = QMessageBox.question(
-        window,
-        "Удаление игры",
-        "Ты действительно хочешь удалить 3l?",
-        QMessageBox.StandardButton.Yes |
-        QMessageBox.StandardButton.No
+def question(title="", text="", *, default_no=False, is_warning=False):
+    msg_box = QMessageBox(window)
+    msg_box.setWindowTitle(title)
+    msg_box.setText(text)
+
+    if is_warning:
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+    else:
+        msg_box.setIcon(QMessageBox.Icon.Question)
+
+    msg_box.setStandardButtons(
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
     )
 
-    if answer == QMessageBox.StandardButton.Yes:
-        print("удаление")
-    else: 
-        print("отмена")
+    if default_no:
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+    else:
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+        
+    return msg_box.exec() == QMessageBox.StandardButton.Yes
 
 def test():
     dialog = QDialog(window)

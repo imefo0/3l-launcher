@@ -95,6 +95,12 @@ class InstallUI(BaseUI):
 class CheckUpdatesUI(BaseUI):
     pass
 
+class DeleteUI(BaseUI):
+    @Slot()
+    def on_refusal(self):
+        self.on_info("Отказ пользователя")
+        self.clear_info()
+
 def set_button_state(state):
     global button_state
 
@@ -192,6 +198,7 @@ launch_button = QPushButton("Запустить")
 
 install_ui = InstallUI(version_selector, window)
 update_ui = CheckUpdatesUI(version_selector, window)
+delete_ui = DeleteUI(version_selector, window)
 
 # ========== главное меню ==========
 
@@ -365,6 +372,62 @@ def cancel_install():
     install_ui.on_waiting(False)
     install_delete_button.setEnabled(False)
     install_ui.reset_progress_bar()
+    set_button_state("install")
+    install_delete_button.setEnabled(True)
+    info.setText("Установка отменена")
+
+def delete_version():
+    print("[DELETE VERSION]")
+
+    version = version_selector.currentText()
+
+    if question("Удаление версии", f"Удалить версию {version}?") and (
+        not settings.value("double_check", True, type=bool)
+        or question(
+            "Повторное подтверждение",
+            f"Все файлы версии {version} будут безвозвратно стерты с диска.\nПродолжить?",
+            is_warning=True,
+            default_no=True)
+            ):
+        print("[DELETE VERSION]: удаление")
+        global thread, deleter
+
+        if not delete.check(version, version_selector):
+            return
+
+        cancel_event.clear()
+        set_button_state("cancel")
+
+        thread = QThread()
+        deleter = delete.Deleter(version, cancel_event)
+
+        delete_ui.set_operation_enabled(False)
+
+        deleter.moveToThread(thread)
+
+        thread.started.connect(deleter.run)
+
+        deleter.info.connect(info.setText)
+        deleter.is_waiting.connect(delete_ui.on_waiting)
+
+        deleter.success.connect(delete_ui.on_success)
+
+        deleter.error.connect(delete_ui.on_error)
+
+        deleter.final.connect(delete_ui.clear_info)
+        deleter.final.connect(delete_ui.reset_progress_bar)
+        deleter.final.connect(on_version_changed)
+
+        deleter.final.connect(
+            lambda: delete_ui.set_operation_enabled(True)
+        )
+
+        deleter.final.connect(thread.quit)
+
+        thread.start()
+    else:
+        print("[DELETE VERSION]: отказ")
+        delete_ui.on_refusal()
 
 def check_updates_main():
     global thread, updater
@@ -428,6 +491,7 @@ def install_version():
 
     installer.final.connect(install_ui.clear_info)
     installer.final.connect(install_ui.reset_progress_bar)
+    installer.final.connect(lambda: set_button_state("delete"))
 
     installer.final.connect(
         lambda: install_ui.set_operation_enabled(True)

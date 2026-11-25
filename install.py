@@ -322,4 +322,3 @@ class Installer(QObject):
             self.error.emit(str(e))
         finally:
             self.final.emit()
-            self.finished.emit()

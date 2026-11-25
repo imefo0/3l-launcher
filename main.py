@@ -365,12 +365,12 @@ def check_updates_main():
 
     updater.final.connect(update_ui.clear_info)
     updater.final.connect(update_ui.reset_progress_bar)
-
-    updater.finished.connect(
+    updater.final.connect(
         lambda: update_ui.set_operation_enabled(True)
     )
-
-    updater.finished.connect(thread.quit)
+    updater.final.connect(on_version_changed)
+    
+    updater.final.connect(thread.quit)
 
     thread.start()
 
@@ -404,11 +404,11 @@ def install_version():
     installer.final.connect(install_ui.clear_info)
     installer.final.connect(install_ui.reset_progress_bar)
 
-    installer.finished.connect(
+    installer.final.connect(
         lambda: install_ui.set_operation_enabled(True)
     )
 
-    installer.finished.connect(thread.quit)
+    installer.final.connect(thread.quit)
 
     thread.start()
 

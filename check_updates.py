@@ -114,7 +114,6 @@ def synchronize_versions(info_callback=None) -> dict[str, dict[str, str | bool]]
     return remote_versions
 
 class Updater(QObject):
-    finished = Signal()
     error = Signal(str)
     success = Signal()
     final = Signal()
@@ -134,4 +133,3 @@ class Updater(QObject):
             self.error.emit(str(e))
         finally:
             self.final.emit()
-            self.finished.emit()

@@ -232,13 +232,15 @@ settings_lib.add_setting(layout=minimize_on_start_game,
                          value="minimize_on_start_game", default_value=True, type=bool,
                          add_stretch=True)
 
+path_text = QLabel("Путь к папке игры:")
+
 path_layout = QHBoxLayout()
 path_input = QLineEdit()
 path_input.setText(settings.value("game_path", ""))
 path_input.textChanged.connect(
     lambda: settings.setValue("game_path", path_input.text())
 )
-path_input.setPlaceholderText("Путь к папке игры")
+path_input.setPlaceholderText("Введите путь к папке игры")
 open_button = QPushButton("Выбрать папку")
 open_button.clicked.connect(
     lambda: path_input.setText(
@@ -275,6 +277,7 @@ settings_layout.addLayout(settings_header_layout)
 settings_layout.addLayout(check_game_upd_on_start)
 settings_layout.addLayout(check_launcher_upd_on_start)
 settings_layout.addLayout(minimize_on_start_game)
+settings_layout.addWidget(path_text)
 settings_layout.addLayout(path_layout)
 settings_layout.addLayout(version_layout)
 settings_layout.addStretch()

@@ -4,7 +4,7 @@ import requests
 # здесь НЕТ github токена >:)
 # there is NO github token >:)
 
-def github_get(url, **kwargs):
+def github_get(url, timeout=15, **kwargs):
     token = os.getenv("GITHUB_TOKEN")
 
     headers = kwargs.pop("headers", {})
@@ -18,6 +18,6 @@ def github_get(url, **kwargs):
     return requests.get(
         url,
         headers=headers,
-        timeout=15,
+        timeout=timeout,
         **kwargs
     )

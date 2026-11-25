@@ -29,7 +29,7 @@ def check(version: str, version_selector: QComboBox) -> bool:
         QMessageBox.information(
             window,
             "Справка",
-            f"Эту версию даже не установлена или ее не существует чтобы ее удалить"
+            f"Невозможно удалить эту версию: она не установлена или не найдена."
         )
         return False
 

@@ -95,12 +95,15 @@ class CheckUpdatesUI(BaseUI):
 def set_button_state(state):
     global button_state
 
+    print("[SET BUTTON STATE]: button_state:", button_state, "new:", state)
+
     button_state = state
 
     texts = {
         "install": "Установить",
         "cancel": "Отмена",
-        "delete": "Удалить"
+        "delete": "Удалить",
+        "none": "Нет версии"
     }
 
     install_delete_button.setText(texts[state])

@@ -61,49 +61,49 @@ def install(
     def check_cancel():
         if cancel_event and cancel_event.is_set():
             raise InterruptedError("Установка отменена")
-    
-    if info_callback: info_callback.emit("Подготовка")
-    if progress_callback and is_waiting is not None: is_waiting.emit(True)
-
-    chunk_size = 8192
-    
-    temp_path = Path(settings.value("game_path", "")) / "templates"
-    versions_path = Path(settings.value("game_path", "")) / "versions"
-
-    moved = False
-    installation_completed = False
-
-    versions = vslib.read_versions()
-
-    versions_path.mkdir(parents=True, exist_ok=True)
-    temp_path.mkdir(parents=True, exist_ok=True)
-
-    os_name, arch = sys_def.get_system_info()
-
-    executable_names = {
-        # HACK
-        "windows": f"{build_name}.exe",
-        "linux": build_name,
-        "macos": f"{build_name}.app"
-    }
-
-    check_cancel()
-
-    if info_callback: info_callback.emit("Проверка на совместимость")
-    if os_name not in executable_names:
-        raise Exception("К сожалению, операционная система не поддерживается.")
-
-    if arch is None:
-        raise Exception("К сожалению, данная архитектура процессора не поддерживается.")
-
-    # game-(windows/linux/macos)-(x86/x64/arm64).zip
-    expected_name = f"3l-{os_name}-{arch}.zip"
-
-    archive_path = temp_path / expected_name
-    temp_version_path = temp_path / version
-    final_version_path = versions_path / version
 
     try:
+        if info_callback: info_callback.emit("Подготовка")
+        if progress_callback and is_waiting is not None: is_waiting.emit(True)
+
+        chunk_size = 8192
+        
+        temp_path = Path(settings.value("game_path", "")) / "templates"
+        versions_path = Path(settings.value("game_path", "")) / "versions"
+
+        moved = False
+        installation_completed = False
+
+        versions = vslib.read_versions()
+
+        versions_path.mkdir(parents=True, exist_ok=True)
+        temp_path.mkdir(parents=True, exist_ok=True)
+
+        os_name, arch = sys_def.get_system_info()
+
+        executable_names = {
+            # HACK
+            "windows": f"{build_name}.exe",
+            "linux": build_name,
+            "macos": f"{build_name}.app"
+        }
+
+        check_cancel()
+
+        if info_callback: info_callback.emit("Проверка на совместимость")
+        if os_name not in executable_names:
+            raise Exception("К сожалению, операционная система не поддерживается.")
+
+        if arch is None:
+            raise Exception("К сожалению, данная архитектура процессора не поддерживается.")
+
+        # game-(windows/linux/macos)-(x86/x64/arm64).zip
+        expected_name = f"3l-{os_name}-{arch}.zip"
+
+        archive_path = temp_path / expected_name
+        temp_version_path = temp_path / version
+        final_version_path = versions_path / version
+
         check_cancel()
         if info_callback: info_callback.emit("Установка данных о версий")
         response = gh_api.github_get(url)

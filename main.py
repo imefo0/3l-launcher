@@ -341,7 +341,7 @@ info.setAlignment(
 def cancel_install():
     cancel_event.set()
     info.setText("Отмена установки...")
-    install_ui.on_waiting()
+    install_ui.on_waiting(False)
     install_delete_button.setEnabled(False)
     install_ui.reset_progress_bar()
 
@@ -386,9 +386,10 @@ def install_version():
         return
 
     cancel_event.clear()
+    set_button_state("cancel")
 
     thread = QThread()
-    installer = install.Installer(version)
+    installer = install.Installer(version, cancel_event)
 
     install_ui.set_operation_enabled(False)
 

@@ -491,7 +491,7 @@ def install_version():
 
     installer.final.connect(install_ui.clear_info)
     installer.final.connect(install_ui.reset_progress_bar)
-    installer.final.connect(lambda: set_button_state("delete"))
+    installer.final.connect(on_version_changed)
 
     installer.final.connect(
         lambda: install_ui.set_operation_enabled(True)

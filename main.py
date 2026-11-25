@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 from threading import Event
 from PySide6.QtWidgets import (
     QApplication, 
@@ -20,19 +21,21 @@ from PySide6.QtCore import (
     QTimer,
     QThread,
     QObject,
-    Slot
+    Slot,
+    QProcess
     )
 from PySide6.QtGui import QColor, QPalette, QFont
-from semantic_version import Version
-import github_api as gh_api
+import subprocess
 
 app = QApplication()
 
 import install
+import delete
 import version_setting_lib as vslib
 import check_updates
 import update_data as upd_data
 import settings_lib
+import system_definition as sys_def
 
 class BaseUI(QObject):
     def __init__(self, version_selector, window):
@@ -453,11 +456,40 @@ def on_version_changed():
         launch_button.setEnabled(False)
         set_button_state("none")
 
+def launch_version():
+    version = version_selector.currentText()
+
+    if vslib.read_versions().get(version, {}).get("is_installed", False):
+        game = Path(settings.value("game_path", "")) / \
+            "versions" / version_selector.currentText() / \
+                f"last_light_leaving{sys_def.get_game_extension()}"
+
+        process = QProcess(window)
+
+        process.finished.connect(
+            lambda: (
+                window.showNormal() if settings.value("minimize_on_start_game", True, type=bool) else None,
+                )
+        )
+
+        process.start(str(game))
+
+        if settings.value("minimize_on_start_game", True, type=bool): window.showMinimized()
+
+    else:
+        QMessageBox.critical(
+            window,
+            "Ошибка",
+            "Версия не установлена."
+        )
+
 button_state = "install"
 cancel_event = Event()
 
 install_delete_button = QPushButton("Установить")
 install_delete_button.clicked.connect(main_action)
+
+launch_button.clicked.connect(launch_version)
 
 update_button = QPushButton("Проверить на наличие новых версий")
 update_button.clicked.connect(check_updates_main)

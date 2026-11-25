@@ -14,6 +14,7 @@ def ensure_defaults() -> None:
         "check_game_upd_on_start": False,
         "check_launcher_upd_on_start": True,
         "minimize_on_start_game": True,
+        "double_check": True,
         "version_alpha": True,
         "version_beta": True,
         "version_rc": True,

@@ -434,6 +434,25 @@ def install_version():
 
     thread.start()
 
+def on_version_changed():
+    print("[ON VERSION CHANGED]:", version_selector.currentText())
+    installed_versions = vslib.read_versions()
+
+    if version_selector.currentText() != "":
+
+        install_delete_button.setEnabled(True)
+        launch_button.setEnabled(True)
+
+        if (current_version := installed_versions.get(version_selector.currentText(), False)) and \
+            current_version["is_installed"]:
+            set_button_state("delete")
+        else:
+            set_button_state("install")
+    else:
+        install_delete_button.setEnabled(False)
+        launch_button.setEnabled(False)
+        set_button_state("none")
+
 button_state = "install"
 cancel_event = Event()
 
@@ -444,6 +463,8 @@ update_button = QPushButton("Проверить на наличие новых �
 update_button.clicked.connect(check_updates_main)
 
 versions = upd_data.get_filtered_sorted_versions()
+
+version_selector.currentTextChanged.connect(on_version_changed)
 
 version_selector.setPlaceholderText("Выберете версию")
 version_selector.setCurrentIndex(-1)
@@ -456,6 +477,7 @@ for version, is_installed in versions.items():
         Qt.ItemDataRole.BackgroundRole
         )
 if len(versions.keys()) > 0: version_selector.setCurrentIndex(0)
+on_version_changed()
 
 bottom_layout.addWidget(install_delete_button, 1, 0)
 bottom_layout.addWidget(launch_button, 1, 1)

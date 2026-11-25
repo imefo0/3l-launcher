@@ -37,7 +37,7 @@ def check(version: str, version_selector: QComboBox) -> bool:
         QMessageBox.critical(
             window,
             "Ошибка",
-            f"Не удалось удалить версию. Введите путь к папке игры"
+            f"Не удалось удалить версию. Введите путь к папке игры."
         )
         return False
 
